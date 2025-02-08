@@ -2,12 +2,18 @@
 pragma solidity ^0.8.17;
 
 contract LotteryContract {
+    struct Ticket {
+        address buyer;
+        uint256 purchaseDate;
+    }
+
     struct Lottery {
         uint256 id;
         address owner;
         uint256 minLaunchDate;
         uint256 ticketPrice;
-        address[] players;
+        string description;
+        Ticket[] tickets;
         address winner;
         bool isActive;
     }
@@ -15,16 +21,22 @@ contract LotteryContract {
     mapping(uint256 => Lottery) public lotteries;
     uint256 public lotteryCount;
 
-    event LotteryCreated(uint256 indexed lotteryId, address indexed owner, uint256 minLaunchDate, uint256 ticketPrice);
+    event LotteryCreated(uint256 indexed lotteryId, address indexed owner, uint256 minLaunchDate, uint256 ticketPrice, string description);
     event TicketPurchased(uint256 indexed lotteryId, address indexed buyer);
     event LotteryLaunched(uint256 indexed lotteryId, address indexed winner);
 
     /**
-    * @notice Creates a new lottery with a ticket price in Gwei (e.g., 100,000 Gwei for 0.0001 ETH).
-    * @param _minLaunchDate Minimum timestamp to launch the lottery.
-    * @param _ticketPriceInGwei Price of a ticket in Gwei (e.g., 100,000 for 0.0001 ETH).
-    */
-    function createLottery(uint256 _minLaunchDate, uint256 _ticketPriceInGwei) external {
+ * @notice Creates a new lottery with a ticket price in Gwei (e.g., 100,000 Gwei for 0.0001 ETH).
+ * @param _minLaunchDate Minimum timestamp to launch the lottery.
+ * @param _ticketPriceInGwei Price of a ticket in Gwei (e.g., 100,000 for 0.0001 ETH).
+ * @param _description A brief description of the lottery.
+ */
+    function createLottery(
+        uint256 _minLaunchDate,
+        uint256 _ticketPriceInGwei,
+        string calldata _description
+    ) external
+    {
         require(_minLaunchDate > block.timestamp, "The launch date must be in the future");
         require(_ticketPriceInGwei > 0, "Ticket price must be > 0");
 
@@ -35,9 +47,10 @@ contract LotteryContract {
         newLottery.owner = msg.sender;
         newLottery.minLaunchDate = _minLaunchDate;
         newLottery.ticketPrice = _ticketPriceInGwei * 10 ** 9;
+        newLottery.description = _description;
         newLottery.isActive = true;
 
-        emit LotteryCreated(lotteryCount, msg.sender, _minLaunchDate, newLottery.ticketPrice);
+        emit LotteryCreated(lotteryCount, msg.sender, _minLaunchDate, newLottery.ticketPrice, _description);
     }
 
     /**
@@ -50,33 +63,37 @@ contract LotteryContract {
 
         require(lottery.isActive, "This lottery is not active or does not exist");
 
-/*  Simulated payment instead of requiring msg.value because payables demand too much Network Gas
+        /*
+            Simulated payment instead of requiring msg.value because payables demand too much Network Gas
         require(lottery.isActive, "Cette loterie n'est pas active ou n'existe pas");
         require(msg.value == lottery.ticketPrice, "Montant envoye incorrect pour le ticket");
-*/
+        */
 
         // Simulate payment instead of requiring msg.value
-        lottery.players.push(msg.sender);
+        lottery.tickets.push(Ticket({
+            buyer: msg.sender,
+            purchaseDate: block.timestamp  // <-- Store the purchase timestamp
+        }));
 
         emit TicketPurchased(_lotteryId, msg.sender);
     }
 
     /**
-     * @notice Launches (closes) the lottery and selects a pseudo-random winner.
-     *         The ticket funds are already transferred to the owner, no additional transfers.
-     * @dev Only the lottery owner can launch it after the minimum date.
-     * @param _lotteryId ID of the lottery to launch.
-     */
+    * @notice Launches (closes) the lottery and selects a pseudo-random winner.
+    *         The ticket funds are already transferred to the owner, no additional transfers.
+    * @dev Only the lottery owner can launch it after the minimum date.
+    * @param _lotteryId ID of the lottery to launch.
+    */
     function launchLottery(uint256 _lotteryId) external {
         Lottery storage lottery = lotteries[_lotteryId];
 
         require(lottery.owner == msg.sender, "You are not the creator of this lottery");
         require(lottery.isActive, "Lottery already launched or does not exist");
         require(block.timestamp >= lottery.minLaunchDate, "Minimum date not reached");
-        require(lottery.players.length > 0, "No participants in this lottery");
+        require(lottery.tickets.length > 0, "No participants in this lottery");
 
-        uint256 randomIndex = _random(lottery.players.length);
-        address winnerAddress = lottery.players[randomIndex];
+        uint256 randomIndex = _random(lottery.tickets.length);
+        address winnerAddress = lottery.tickets[randomIndex].buyer; // <-- Access the buyer
 
         lottery.winner = winnerAddress;
         lottery.isActive = false;
@@ -121,8 +138,8 @@ contract LotteryContract {
     */
     function isUserInLottery(uint256 _lotteryId, address _user) external view returns (bool) {
         Lottery storage lottery = lotteries[_lotteryId];
-        for (uint256 i = 0; i < lottery.players.length; i++) {
-            if (lottery.players[i] == _user) {
+        for (uint256 i = 0; i < lottery.tickets.length; i++) {
+            if (lottery.tickets[i].buyer == _user) {
                 return true;
             }
         }
