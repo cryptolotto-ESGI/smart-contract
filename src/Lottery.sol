@@ -11,6 +11,7 @@ contract LotteryContract {
         uint256 id;
         address owner;
         uint256 minLaunchDate;
+        uint256 endDate;
         uint256 ticketPrice;
         string description;
         Ticket[] tickets;
@@ -23,7 +24,7 @@ contract LotteryContract {
 
     event LotteryCreated(uint256 indexed lotteryId, address indexed owner, uint256 minLaunchDate, uint256 ticketPrice, string description);
     event TicketPurchased(uint256 indexed lotteryId, address indexed buyer);
-    event LotteryLaunched(uint256 indexed lotteryId, address indexed winner);
+    event LotteryLaunched(uint256 indexed lotteryId, address indexed winner, uint256 endDate);
 
     /**
  * @notice Creates a new lottery with a ticket price in Gwei (e.g., 100,000 Gwei for 0.0001 ETH).
@@ -62,6 +63,7 @@ contract LotteryContract {
         Lottery storage lottery = lotteries[_lotteryId];
 
         require(lottery.isActive, "This lottery is not active or does not exist");
+        require(block.timestamp < lottery.minLaunchDate, "Ticket sales closed after minLaunchDate");
 
         /*
             Simulated payment instead of requiring msg.value because payables demand too much Network Gas
@@ -97,8 +99,9 @@ contract LotteryContract {
 
         lottery.winner = winnerAddress;
         lottery.isActive = false;
+        lottery.endDate = block.timestamp;
 
-        emit LotteryLaunched(_lotteryId, winnerAddress);
+        emit LotteryLaunched(_lotteryId, winnerAddress, block.timestamp);
     }
 
     /**
